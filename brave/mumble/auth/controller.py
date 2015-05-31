@@ -6,7 +6,7 @@ from web.auth import authenticate, deauthenticate
 from web.core import config, url, session
 from web.core.http import HTTPFound
 
-from brave.api.client import API
+from braveapi.client import API
 
 
 log = __import__('logging').getLogger(__name__)

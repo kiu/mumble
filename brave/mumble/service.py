@@ -16,7 +16,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 from brave.mumble.auth.model import Ticket
-from brave.api.client import API
+from braveapi.client import API
 
 Ice.loadSlice(b'', [b'-I' + (Ice.getSliceDir() or b'/usr/local/share/Ice-3.5/slice/'), b'Murmur.ice'])
 import Murmur

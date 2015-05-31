@@ -12,7 +12,7 @@ from scrypt import error as scrypt_error, encrypt as scrypt, decrypt as validate
 
 from web.core import config
 from mongoengine import Document, EmbeddedDocument, StringField, DateTimeField, IntField, EmbeddedDocumentField, ListField
-from brave.api.client import API
+from braveapi.client import API
 
 
 log = __import__('logging').getLogger(__name__)
