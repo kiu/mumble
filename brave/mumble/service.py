@@ -18,7 +18,8 @@ from datetime import datetime, timedelta
 from brave.mumble.auth.model import Ticket
 from braveapi.client import API
 
-Ice.loadSlice(b'', [b'-I' + (Ice.getSliceDir() or b'/usr/local/share/Ice-3.5/slice/'), b'Murmur.ice'])
+Ice.loadSlice('-I/usr/share/Ice-3.5.1/slice Murmur.ice')
+#Ice.loadSlice(b'', [b'-I' + (Ice.getSliceDir() or b'/usr/local/share/Ice-3.5/slice/'), b'Murmur.ice'])
 import Murmur
 
 
