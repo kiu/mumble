@@ -22,9 +22,9 @@ setup(
         
         dependency_links = [
             'https://github.com/marrow/marrow.tags/archive/develop.zip#egg=marrow.tags',
-            'https://github.com/marrow/marrow.templating/archive/develop.zip#egg=marrow.templating',
-            'https://github.com/marrow/WebCore/archive/develop.zip#egg=WebCore'
-            'https://github.com/bravecollective/api/archive/develop.zip#egg=braveapi',
+#            'https://github.com/marrow/marrow.templating/archive/develop.zip#egg=marrow.templating',
+#            'https://github.com/marrow/WebCore/archive/develop.zip#egg=WebCore'
+#            'https://github.com/bravecollective/api/archive/develop.zip#egg=braveapi',
         ],
         
         install_requires = [
