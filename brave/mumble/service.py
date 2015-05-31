@@ -163,7 +163,7 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
                 # Define the registration date if one has not been set.
                 Ticket.objects(character__name=name, registered=None).update(set__registered=datetime.utcnow())
         
-            for tag in ('member', 'blue', 'guest', 'mumble'):
+            for tag in ('admin', 'member', 'blue', 'guest', 'mumble'):
                 if tag in user.tags: break
             else:
                 log.warn('User "%s" does not have permission to connect to this server.', name)
