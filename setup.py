@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 setup(
         name = "Brave Mumble",
         version = "0.1",
-        description = "Online forums software designed for the Brave Collective Alliance of EVE Online.",
+        description = "Mumble services designed for the Brave Collective Alliance of EVE Online.",
         author = "Alice Bevan-McGregor",
         author_email = "alice@gothcandy.com",
         license = "MIT",
@@ -43,7 +43,8 @@ setup(
                 'babel',
                 'marrow.mailer',
                 'futures',
-                'scrypt'
+                'scrypt',
+                'pymongo<3.0',
             ],
         
     )
