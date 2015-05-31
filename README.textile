@@ -4,7 +4,7 @@ bq(subtitle). An authenticated Mumble management application and authorization p
 
 bq(byline). (C) 2013-2014, Alice Bevan-McGregor and contributors.
 
-bq(byline). "https://github.com/bravecollective/mumble":github-project
+bq(byline). https://github.com/bravecollective/mumble
 
 [github-project]https://github.com/bravecollective/core
 
