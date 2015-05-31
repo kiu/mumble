@@ -3,3 +3,7 @@
 
 be925ea: Add mumble.bypassCore to your config file. True means mumble will fall back to the local database if the
     connection to Core fails.
+
+d2d6ae4: Moved startAuthenticator.sh to bcs-mumble-auth.sh. Expects default install path of /opt/bcs/bcs-mumble.
+
+2482f9b: Moved ICE secret to ini file (mumble.ice.secret)
