@@ -444,13 +444,15 @@ class CustomLogger(Ice.Logger):
 
 
 
-def main(secret):
+def main():
     """
     
     PYTHONPATH=/usr/local/lib/python2.7/site-packages paster shell
-    from brave.mumble.service import main; main('')
+    from brave.mumble.service import main; main()
     
     """
+    secret = config.get('mumble.ice.secret')
+
     log.info("Ice initializing.")
     
     prop = Ice.createProperties([])
