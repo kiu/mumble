@@ -3,7 +3,7 @@
 from __future__ import unicode_literals
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, tzinfo
 from random import choice
 from string import printable
 from mongoengine import BinaryField
@@ -17,6 +17,25 @@ from braveapi.client import API
 
 log = __import__('logging').getLogger(__name__)
 
+
+# Time (in hours) after which a ticket needs to be rechecked
+update_timeout=1
+
+# Timezone Definitions
+ZERO = timedelta(0)
+class UTC(tzinfo):
+    def utcoffset(self, dt):
+        return ZERO
+
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return ZERO
+
+utc = UTC()
+
+# --------------------------------------------------
 
 class PasswordField(BinaryField):
     def __init__(self, difficulty=1, **kwargs):
@@ -101,45 +120,67 @@ class Ticket(Document):
         return "<Ticket {0.id} \"{0.character.name}\">".format(self)
     
     @classmethod
-    def authenticate(cls, identifier, password=None):
-        """Validate the given identifier; password is ignored."""
-        
-        api = API(config['api.endpoint'], config['api.identity'], config['api.private'], config['api.public'])
-        result = api.core.info(identifier)
-        
-        #Invalid token sent. Probably a better way to handle this.
-        if not result:
-            log.info("Token %s not valid, or connection to Core has been lost.", identifier)
-            return None
-        
-        user = cls.objects(character__id=result.character.id).first()
-        
-        if not user:
-            user = cls(token=identifier, expires=result.expires, seen=datetime.utcnow())
-        elif identifier != user.token:
-            user.token = identifier
-        
-        user.character.id = result.character.id
-        user.character.name = result.character.name
-        user.corporation.id = result.corporation.id
-        user.corporation.name = result.corporation.name
-        
-        ticket = Ticket.objects(alliance__id=(result.alliance.id if result.alliance else 0)).first()
+    def authenticate(cls, identifier, password=None, force_update=True):
 
-        if result.alliance and ticket:
-            user.alliance = ticket.alliance
-        elif result.alliance:
-            user.alliance.id = result.alliance.id
-            user.alliance.name = result.alliance.name
-            
-            alliance = api.lookup.alliance(result.alliance.id, only='short')
-            if alliance and alliance.success:
-                user.alliance.ticker = alliance.short
-        
-        user.tags = [i.replace('mumble.', '') for i in (result.tags if 'tags' in result else [])]
-        user.updated = datetime.now()
-        user.save()
-        
+
+        # See if we can get the user object by the passed in token
+        try:
+            user = cls.objects(token=identifier).first()
+        except Exception as e:
+            force_update = True
+
+        try:
+            if force_update or (datetime.now(tz=utc) - user.updated > timedelta(hours=update_timeout)):
+
+                before = datetime.now()
+
+                api = API(config['api.endpoint'], config['api.identity'], config['api.private'], config['api.public'])
+                result = api.core.info(identifier)
+
+                after = datetime.now()
+                log.info("Check Query to Core took {0}".format(after - before))
+
+                #Invalid token sent. Probably a better way to handle this.
+                if not result:
+                    log.info("Token %s not valid, or connection to Core has been lost.", identifier)
+                    return None
+
+                user = cls.objects(character__id=result.character.id).first()
+
+                if not user:
+                    user = cls(token=identifier, expires=result.expires, seen=datetime.utcnow())
+                elif identifier != user.token:
+                    user.token = identifier
+
+                log.info("Updating user %s having %s", result.character.name, result.tags)
+
+                user.character.id = result.character.id
+                user.character.name = result.character.name
+                user.corporation.id = result.corporation.id
+                user.corporation.name = result.corporation.name
+
+                all = Ticket.objects(alliance__id=(result.alliance.id if result.alliance else 0)).first()
+
+                if result.alliance and all:
+                    user.alliance = all.alliance
+                elif result.alliance:
+                    user.alliance.id = result.alliance.id
+                    user.alliance.name = result.alliance.name
+
+                    alliance = api.lookup.alliance(result.alliance.id, only='short')
+                    if alliance and alliance.success:
+                        user.alliance.ticker = alliance.short
+                else:
+                    user.alliance = None
+
+                user.tags = [i.replace('mumble.', '') for i in (result.tags if 'tags' in result else [])]
+                user.updated = datetime.now()
+                user.save()
+
+        except Exception as e:
+            log.info("General Exception(%s): %s", identifier, e)
+            return None
+
         return user.id, user
     
     @classmethod
