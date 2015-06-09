@@ -45,6 +45,7 @@ setup(
                 'futures',
                 'scrypt',
                 'pymongo<3.0',
+                'flup',
             ],
         
     )
