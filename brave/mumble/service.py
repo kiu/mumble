@@ -76,6 +76,10 @@ class IdlerHandler(object):
                 # log.info("Apparently users are integers. That's cool I guess. {0}".format(user))
                 continue
 
+            if isinstance(user, long):
+                # log.info("Apparently users are longs. That's cool I guess. {0}".format(user))
+                continue
+
             if user.channel in exclude: continue
 
             try:
