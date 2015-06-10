@@ -237,9 +237,9 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
 
             for perm in user.perms:
 		if perm.startswith('mumble.name.prefix.'):
-                    name = '{0}'.format(perm.replace('mumble.name.prefix.', '')) + ' ' + name
+                    name = '{0} {1}'.format(perm.replace('mumble.name.prefix.', ''), name)
 		if perm.startswith('mumble.name.suffix.'):
-                    name = name = ' ' + '{0}'.format(perm.replace('mumble.name.suffix.', ''))
+                    name = '{0} {1}'.format(name, perm.replace('mumble.name.suffix.', ''))
 
 # ---------------------------------------------------------
 
@@ -357,13 +357,11 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
 
     #KIU TODO this needs to be adapted. Store all displaynames in Ticket DB?
     def nameToId(self, name, current=None):
-	return -2
-        #ticker, _, name = name.partition('] ')
-        #return Ticket.objects(character__name=name).scalar('character__id').first() or -2
+        return Ticket.objects(character__name=name).scalar('character__id').first() or -2
 
     #KIU TODO this needs to be adapted to use the proper displayname
     def idToName(self, id, current=None):
-        user = Ticket.objects(character__id=id).only('character__name', 'alliance__ticker').first()
+        user = Ticket.objects(character__id=id).only('character__name').first()
         if not user:
 	    return ''
         return '{0}'.format(user.character.name)
