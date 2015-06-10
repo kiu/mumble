@@ -14,6 +14,7 @@ from marrow.util.bunch import Bunch
 from collections import defaultdict
 from datetime import datetime, timedelta
 from brave.mumble.auth.model import Ticket
+import random
 import re
 
 Ice.loadSlice('-I/usr/share/Ice-3.5.1/slice Murmur.ice')
@@ -31,6 +32,7 @@ UNKNOWN_USER_FAIL = (-2, None, None)
 NO_INFO = (False, {})
 
 # blue access tag list
+# DEPRECATED - FOR BACKWARD COMPATIBILITY ONLY
 access_blue_list = ('admin', 'member', 'blue')
 
 # ---------------------------------------------------------
@@ -115,6 +117,8 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
 
             log.info('authenticate "%s" %s', name, certhash)
 
+# ---------------------------------------------------------
+
             # if people try to login with SuperUser, immediately fail them
             if name == 'SuperUser':
                 log.warn('Forced fall through for SuperUser')
@@ -122,7 +126,6 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
 
             # Mark special users
             rankHide = False
-
             if '-norank' in name:
                 name = name[:-7]
                 rankHide = True
@@ -133,9 +136,11 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
                 name = name[:-9]
                 spy = True
 
+# ---------------------------------------------------------
+
             # Look up the user.
             try:
-                user = Ticket.objects(character__name=name).only('tags', 'updated', 'password', 'corporation__id', 'corporation__ticker',
+                user = Ticket.objects(character__name=name).only('perms', 'tags', 'updated', 'password', 'corporation__id', 'corporation__ticker',
                                            'alliance__id', 'alliance__ticker', 'character__id', 'token').first()
             except Ticket.DoesNotExist:
                 log.warn('Authentication Error: User "%s" not found in the Ticket database.', name)
@@ -154,6 +159,8 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
                 log.warn('Authentication Error: Incorrect password for user "%s"', name)
                 return AUTH_FAIL
 
+# ---------------------------------------------------------
+
             # check to see if we need to update the users ticket info from core
             try:
                 # If the token is not valid, deny access
@@ -163,32 +170,61 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
                 log.warning("Exception occured when attempting to authenticate user {0} {1}.".format(name, e))
                 return AUTH_FAIL
 
-            user = Ticket.objects(character__name=name).only('tags', 'updated', 'password', 'corporation__id', 'corporation__ticker',
+            user = Ticket.objects(character__name=name).only('perms', 'tags', 'updated', 'password', 'corporation__id', 'corporation__ticker',
                                            'alliance__id', 'alliance__ticker', 'character__id', 'token').first()
+
+            user.perms = sorted(user.perms)
+
+# ---------------------------------------------------------
 
             # Define the registration date if one has not been set.
             Ticket.objects(character__name=name, registered=None).update(set__registered=datetime.utcnow())
 
+# ---------------------------------------------------------
+
+            groups = []
+
+            # Prepare permissions
+            for perm in user.perms:
+		if perm.startswith('mumble.group.'):
+                    groups.append('{0}'.format(perm.replace('mumble.group.', '')))
 
             # Prepare tags
-            tags = [i.replace('mumble.', '') for i in user.tags]
-            tags.append('corporation-{0}'.format(user.corporation.id))
+	    # DEPRECATED - FOR BACKWARD COMPATIBILITY ONLY
+            for tag in user.tags:
+                groups.append(tag)
+
+            groups.append('corporation-{0}'.format(user.corporation.id))
             if user.alliance and user.alliance.id:
-                tags.append('alliance-{0}'.format(user.alliance.id))
-            log.info('Found tags for "%s": %s', name, ', '.join(tags))
+                groups.append('alliance-{0}'.format(user.alliance.id))
+
+	    groupDesc = ', '.join(groups)
+            log.info('Found groups for "%s": %s', name, groupDesc)
+
+# ---------------------------------------------------------
 
             # Only allow access for members
-            for tag in access_blue_list:
-                if tag in user.tags: break
-            else:
+            grantAccess = False
+
+            if 'mumble.connect' in user.perms:
+                grantAccess = True
+
+	    # DEPRECATED - FOR BACKWARD COMPATIBILITY ONLY
+            for tag in user.tags:
+		if tag in access_blue_list:
+            	    grantAccess = True
+
+            if not grantAccess:
                 log.warn('User "%s" does not have permission to connect to this server.', name)
                 return AUTH_FAIL
 
-            # Set ticker
-            ticker = user.alliance.ticker if user.alliance.ticker else '----'
+# ---------------------------------------------------------
 
-            # Lets figure out the rank
-            rank = []
+            # Set ticker
+            aticker = user.alliance.ticker if user.alliance.ticker else '----'
+            cticker = user.corporation.ticker if user.corporation.ticker else '----'
+
+# ---------------------------------------------------------
 
             # Example to rewrite a name
             #if name == 'kiu Nakamura':
@@ -199,37 +235,98 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
             #    name = 'Joe Sixpack'
             #    rankHide = True
 
-            # Example to append tags based on character name
+            for perm in user.perms:
+		if perm.startswith('mumble.name.prefix.'):
+                    name = '{0}'.format(perm.replace('mumble.name.prefix.', '')) + ' ' + name
+		if perm.startswith('mumble.name.suffix.'):
+                    name = name = ' ' + '{0}'.format(perm.replace('mumble.name.suffix.', ''))
+
+# ---------------------------------------------------------
+
+            # Lets figure out the rank
+            rank = []
+
+            # Example to append rank based on character name
             #if name == 'Mister FC':
             #    rank.append('FC')
 
-            # Example to append based on group membership
+            # Example to append rank based on group membership
+	    # DEPRECATED - FOR BACKWARD COMPATIBILITY ONLY
             #if 'alliance.mil.fc' in tags:
             #    rank.append('FC')
 
             # Example to replace tags
+	    # DEPRECATED - FOR BACKWARD COMPATIBILITY ONLY
             #if name == 'Great Leader':
             #    rank[:] = ['CEO']
 
-            rankDesc = ', '.join(rank)
+            for perm in user.perms:
+		if perm.startswith('mumble.rank.append.'):
+                    rank.append('{0}'.format(perm.replace('mumble.rank.append.', '')))
+
+            rankmap = {}
+            for perm in user.perms:
+		if perm.startswith('mumble.rank.appendgrouped.'):
+                    tmp = perm.replace('mumble.rank.appendgrouped.', '')
+		    if tmp.count('.') < 2:
+                        log.warn('Permission is missing parameters: {0}'.format(perm))
+                        continue
+                    tmp = tmp.split('.', 2)
+                    rankmap[tmp[0]] = tmp[2]
+            for key in rankmap:
+                rank.append('{0}'.format(rankmap[key]))
+
+            for perm in user.perms:
+		if perm.startswith('mumble.rank.replace.'):
+                    rank[:] = [('{0}'.format(perm.replace('mumble.rank.replace.', '')))]
+
+            if 'mumble.rank.clear' in user.perms:
+                rankHide = True
+
+	    rankDesc = ', '.join(rank)
+
+# ---------------------------------------------------------
 
             if spy:
                 spy_names = ['Penny', 'Sheldon', 'Lennard']
                 spy_name = spy_names[randint(0, len(spy_names)-1)]
-                spy_ticker = 'BRAVE'
-                log.info('Requesting to disguise spy user "[{0}] {1}" as "[{2}] {3}"'.format(ticker, name, spy_ticker, spy_name))
-                return (user.character.id, '[{0}] {1}'.format(spy_ticker, spy_name), tags)
+                spy_aticker = 'BRAVE'
+                spy_cticker = 'SB00N'
+                log.info('Requesting to disguise spy user "<{0}> [{1}] {2}" as "<{3}> [{4}] {5}"'.format(aticker, cticker, name, spy_aticker, spy_cticker, spy_name))
+                name = spy_name
+                aticker = spy_aticker
+                cticker = spy_cticker
+		rankHide = True
+
+# ---------------------------------------------------------
 
             if rankHide:
-                log.info('Requesting to hide ranks "({0})" of user "[{1}] {2}"'.format(rankDesc, ticker, name))
-                return (user.character.id, '[{0}] {1}'.format(ticker, name), tags)
+                log.info('Requesting to hide ranks "{0}" for user "<{1}> [{2}] {3}"'.format(rankDesc, aticker, cticker, name))
+		rankDesc = ''
 
-            if rank:
-                log.info('Attaching rank "({0})" to user "[{1}] {2}"'.format(rankDesc, ticker, name))
-                return (user.character.id, '[{0}] {1} ({2})'.format(ticker, name, rankDesc), tags)
+	    displayname = config.get('mumble.displayname', 'Displayname Undefined')
+	    displayname = displayname.replace('%A', aticker)
+	    displayname = displayname.replace('%C', cticker)
+	    displayname = displayname.replace('%N', name)
 
-            log.info('No ranks to attach for user "[{0}] {1}"'.format(ticker, name))
-            return (user.character.id, '[{0}] {1}'.format(ticker, name), tags)
+	    if rankDesc != '':
+		displayname = displayname.replace('%R', rankDesc)
+		displayname = displayname.replace('%r', '')
+	    else:
+		displayname = displayname.replace('%R', '')
+		displayname = re.sub('%r.*%r', '', displayname)
+
+	    if groupDesc != '':
+		displayname = displayname.replace('%G', groupDesc)
+		displayname = displayname.replace('%g', '')
+	    else:
+		displayname = displayname.replace('%G', '')
+		displayname = re.sub('%g.*%g', '', displayname)
+
+            log.info('Accepting user "<{0}> [{1}] {2}" as "{3}" with "{4}" in "{5}"'.format(aticker, cticker, name, displayname, rankDesc, groupDesc))
+            return (user.character.id, displayname, groups)
+
+# ---------------------------------------------------------
 
         except Exception as exc:
             log.critical("Exception occurred in authenticate! {0}".format(exc))
@@ -238,33 +335,38 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
     def getInfo(self, id, current=None):
         return False, {}  # for now, let's pass through
 
+	"""
         log.debug('getInfo %d', id)
 
         try:
-            seen, name, ticker, comment = Ticket.objects(character__id=id).scalar('seen', 'character__name', 'alliance__ticker', 'comment').first()
+            seen, name, aticker, comment = Ticket.objects(character__id=id).scalar('seen', 'character__name', 'alliance__ticker', 'comment').first()
         except TypeError:
             return NO_INFO
 
         if name is None: return NO_INFO
-        if not ticker: ticker = '----'
+        if not aticker: aticker = '----'
+        if not cticker: cticker = '----'
 
         return True, {
             # Murmur.UserInfo.UserLastActive: seen,  # TODO: Verify the format this needs to be in.
-            Murmur.UserInfo.UserName: '[{0}] {1}'.format(ticker, name),
+            Murmur.UserInfo.UserName: '[{0}] {1}'.format(aticker, name),
             Murmur.UserInfo.UserComment: comment,
         }
 
-    def nameToId(self, name, current=None):
-        ticker, _, name = name.partition('] ')
-        return Ticket.objects(character__name=name).scalar('character__id').first() or -2
+	"""
 
+    #KIU TODO this needs to be adapted. Store all displaynames in Ticket DB?
+    def nameToId(self, name, current=None):
+	return -2
+        #ticker, _, name = name.partition('] ')
+        #return Ticket.objects(character__name=name).scalar('character__id').first() or -2
+
+    #KIU TODO this needs to be adapted to use the proper displayname
     def idToName(self, id, current=None):
         user = Ticket.objects(character__id=id).only('character__name', 'alliance__ticker').first()
-        if not user: return ''
-
-        ticker = user.alliance.ticker or '----'
-
-        return '[{0}] {1}'.format(user.character.name, user.alliance.ticker)
+        if not user:
+	    return ''
+        return '{0}'.format(user.character.name)
 
     def idToTexture(self, id, current=None):
         log.debug("idToTexture %d", id)

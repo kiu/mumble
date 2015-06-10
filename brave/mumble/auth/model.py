@@ -103,6 +103,7 @@ class Ticket(Document):
     corporation = EmbeddedDocumentField(Entity, db_field='o', default=lambda: Entity())
     alliance = EmbeddedDocumentField(Entity, db_field='a', default=lambda: Entity())
     tags = ListField(StringField(), db_field='g', default=list)
+    perms = ListField(StringField(), db_field='p', default=list)
     
     password = PasswordField(db_field='pw', difficulty=0.125)
     comment = StringField(db_field='m', default='')
@@ -152,12 +153,14 @@ class Ticket(Document):
                 elif identifier != user.token:
                     user.token = identifier
 
-                log.info("Updating user %s having %s", result.character.name, result.tags)
-
                 user.character.id = result.character.id
                 user.character.name = result.character.name
                 user.corporation.id = result.corporation.id
                 user.corporation.name = result.corporation.name
+
+                corpshort = api.lookup.corporation(result.corporation.id, only='short')
+                if corpshort and corpshort.success:
+                        user.corporation.ticker = corpshort.short
 
                 all = Ticket.objects(alliance__id=(result.alliance.id if result.alliance else 0)).first()
 
@@ -173,9 +176,17 @@ class Ticket(Document):
                 else:
                     user.alliance = None
 
+                filtered_perms = []
+                for perm in result.perms:
+                    if perm.startswith('mumble.'):
+                        filtered_perms.append(perm)
+
+                user.perms = filtered_perms
                 user.tags = [i.replace('mumble.', '') for i in (result.tags if 'tags' in result else [])]
                 user.updated = datetime.now()
                 user.save()
+
+                log.info("Updating user %s having %s and %s", user.character.name, user.tags, user.perms)
 
         except Exception as e:
             log.info("General Exception(%s): %s", identifier, e)
