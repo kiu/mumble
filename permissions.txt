@@ -1,0 +1,11 @@
+mumble.connect						Allow user to connect to mumble
+
+mumble.group.{groupname}				Put user into mumble group {groupname}
+
+mumble.name.prefix.{text}				Prefix the character name with {text}
+mumble.name.suffix.{text}				Suffix the character name with {text}
+
+mumble.rank.append.{rank}				Add {rank} to user
+mumble.rank.clear					Remove all ranks
+mumble.rank.appendgrouped.{group}.{order}.{rank}	Add {rank} to user but only the highest {order} for each {group}
+mumble.rank.replace.{rank}				Remove all ranks and add {rank}
