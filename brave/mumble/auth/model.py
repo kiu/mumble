@@ -18,6 +18,7 @@ from braveapi.client import API
 log = __import__('logging').getLogger(__name__)
 
 
+# TODO Move to config file
 # Time (in hours) after which a ticket needs to be rechecked
 update_timeout=1
 
