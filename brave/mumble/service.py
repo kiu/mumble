@@ -2,20 +2,23 @@
 
 # from __future__ import unicode_literals
 
+import re
+import random
 import sys
 import time
 import tempfile
+
 import Ice
 import IcePy
+
 from threading import Timer
 from web.core import config
 from marrow.util.convert import number, array
 from marrow.util.bunch import Bunch
 from collections import defaultdict
 from datetime import datetime, timedelta
+
 from brave.mumble.auth.model import Ticket
-import random
-import re
 
 Ice.loadSlice('-I/usr/share/Ice-3.5.1/slice Murmur.ice')
 #Ice.loadSlice(b'', [b'-I' + (Ice.getSliceDir() or b'/usr/local/share/Ice-3.5/slice/'), b'Murmur.ice'])
@@ -161,7 +164,6 @@ class MumbleAuthenticator(Murmur.ServerUpdatingAuthenticator):
 
 # ---------------------------------------------------------
 
-            # check to see if we need to update the users ticket info from core
             try:
                 # If the token is not valid, deny access
                 if not Ticket.authenticate(user.token, force_update=False):
